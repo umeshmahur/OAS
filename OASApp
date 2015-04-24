@@ -1,0 +1,195 @@
+#!/usr/bin/perl
+
+use threads;
+use File::Tail;
+
+$SNMPTARGET = "";
+@SYSTEM = ();
+@threadID = ();
+#%SYSTEMID = ();
+#%LOGTYPE = ();
+#%LOGDIR = ();
+#%LOGFILE = ();
+#%
+
+$logDir = $ENV{'OAS_LOGDIR'};
+$confDir = $ENV{'OAS_CONFDIR'};
+
+if(! defined $logDir){print "Environment Variable <OAS_LOGDIR> is not set. Aborting.\n";exit(1);}
+if(! defined $confDir){print "Environment Variable <OAS_CONFDIR> is not set. Aborting.\n";exit(2);}
+$confFile = $confDir."/OAS.conf";
+
+if(!(-d $logDir))
+{
+  print "LogDir <$logDir> do not exit\n";
+  exit 3;
+}
+
+if(!(-w $logDir))
+{
+  print "LogDir <$logDir> do not have write permissions\n";
+  exit 4;
+}
+
+if(!(-e $confFile))
+{
+  print "Config File <$confFile> do not exit\n";
+  exit 5;
+}
+
+$date = `date +'%Y%m%d'`;chomp($date);
+$logFile = $logDir."/OpenAlertSystem_".$date.".log";
+open LOG,">>$logFile";
+
+logIt("Starting OpenAlertSystem");
+readConfig();
+
+#sendSNMP("10,1,LOG,Critical,THIS is critical Error");
+#exit 0;
+
+$threadIndex = 0;
+foreach $mySystem(@SYSTEM)
+{
+  logIt("creating thread for system=<$mySystem>");
+  $threadID[$threadIndex] = threads->create(\&threadProcess,$mySystem);
+  $threadIndex++;
+}
+
+while(1)
+{
+  logIt("Sleeping in Main");
+  sleep 30;
+}
+close LOG;
+exit 0;
+
+sub logIt
+{
+  my $logLine = shift;
+  my $ts = `date +'%Y%m%d %H:%M:%S'`;chomp($ts);
+  print LOG "$ts - $logLine"."\n";
+}
+
+sub readConfig()
+{
+  my $line = "";
+  my $key = "";
+  my $value = "";
+
+  logIt("Reading config file <$confFile>");
+  open CONF,"<$confFile";
+  while($line = <CONF>)
+  {
+    chomp($line);
+    if($line !~ /^#/) 
+    {
+      ($key,$value) = split("=",$line);
+      if($key eq "SNMPTARGET"){$SNMPTARGET = $value;}
+      if($key eq "SYSTEM"){push(@SYSTEM,$value);}
+    }
+  }
+  close CONF;
+
+  logIt("Using following configuration");
+  logIt("SNMP Host = <$SNMPTARGET>");
+  foreach $mysystem (@SYSTEM)
+  {
+    logIt("System = <$mysystem>");
+  }
+}
+
+sub threadProcess
+{
+  my @InboundParameters = @_;
+  my $thisSystem = $InboundParameters[0];
+  my $thisConfFile = $confDir."/".$thisSystem;
+  my $line = "";
+  my $key = "";
+  my $value = ""; 
+  my $SYSTEMID = "";
+  my $LOGTYPE = "";
+  my $LOGDIR = "";
+  my $LOGFILE = "";
+  my @KEYWORD = ();
+  my $localLogFileName = "";
+  my $fileToRead = "";
+  my $keyLine = "";
+  my $keyID = "";
+  my $keySeverity = "";
+  my $keyDesc = "";
+
+  logIt("In thread process -- <$thisSystem>");
+
+  if(-e $thisConfFile)
+  {
+    logIt("Reading Conf File <$thisConfFile>");
+    open SYSTEMLOG,"<$thisConfFile";
+    while($line = <SYSTEMLOG>)
+    {
+      chomp($line);
+      ($key,$value) = split("=",$line);
+      if($key eq "SYSTEMID") { $SYSTEMID = $value;}
+      if($key eq "LOGTYPE") { $LOGTYPE = $value;}
+      if($key eq "LOGDIR") { $LOGDIR = $value;}
+      if($key eq "LOGFILE") { $LOGFILE = $value;}
+      if($key eq "KEYWORD") { push(@KEYWORD,$value);}
+    }
+  }
+  else
+  {
+    logIt("Config File <$thisConfFile> do not exist. Aborting thread <$thisSystem>");
+    return 1;
+  }
+
+  if($LOGTYPE eq "FIXED")
+  {
+    $localLogFileName = $LOGDIR."/".$LOGFILE;
+    if(!(-e $localLogFileName))
+    {
+      logIt("Logfile to be parsed <$localLogFileName> do not exist. Aborting thread <$thisSystem>");
+      return 2;
+    }
+  }
+  else
+  {
+#   To Do
+  }
+
+  $fileToRead = File::Tail->new(name=>$localLogFileName, maxinterval=>2, interval=>2, debug=>1, resetafter=>60, ignore_nonexistant=>1, tail=>1);
+  while(defined($line=$fileToRead->read))
+  {
+    chomp($line);
+    logIt("Thread<$thisThreadID> -- $line");
+    foreach $keyTomatch(@KEYWORD)
+    {
+      ($keyLine,$keyID,$keySeverity,$keyDesc) = split(":",$keyTomatch);
+      if($line =~ /$keyLine/)
+      {
+        sendSNMP($SYSTEMID.",".$keyID.","."LOG".",".$keySeverity.",".$keyDesc);
+      }
+    }
+  }
+
+  return 0;
+}
+
+sub sendSNMP
+{
+  my $alertArg = shift;
+  my $enterprise = "1.3.6.1.4.1.515.1005.1";
+  my $system = "";
+  my $alertID = "";
+  my $alertType = "";
+  my $alertSeverity = "";
+  my $alertDesc = "";
+
+ ($system,$alertID,$alertType,$alertSeverity,$alertDesc) = split(",",$alertArg);
+
+  $snmpTrapCmd = "snmptrap -v 1 -c public $SNMPTARGET $enterprise.$system localhost 6 $alertID ''"; 
+  $snmpTrapCmd = $snmpTrapCmd." $enterprise.$system.$alertID.1 s $alertType";
+  $snmpTrapCmd = $snmpTrapCmd." $enterprise.$system.$alertID.2 s $alertSeverity";
+  $snmpTrapCmd = $snmpTrapCmd." $enterprise.$system.$alertID.3 s \"$alertDesc\"";
+
+  logIt("snmpTrapCmd = <$snmpTrapCmd>");
+  system($snmpTrapCmd);
+}
