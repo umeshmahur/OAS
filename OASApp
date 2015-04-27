@@ -117,8 +117,11 @@ sub threadProcess
   my $keyID = "";
   my $keySeverity = "";
   my $keyDesc = "";
+  my $localCommand = "";
+  my $localOutput = "";
+  my @localFileList = ();
 
-  logIt("In thread process -- <$thisSystem>");
+  logIt("<$thisSystem> : In thread process.");
 
   if(-e $thisConfFile)
   {
@@ -137,29 +140,36 @@ sub threadProcess
   }
   else
   {
-    logIt("Config File <$thisConfFile> do not exist. Aborting thread <$thisSystem>");
+    logIt("<$thisSystem> : Config File <$thisConfFile> do not exist. Aborting thread.");
     return 1;
   }
 
   if($LOGTYPE eq "FIXED")
   {
     $localLogFileName = $LOGDIR."/".$LOGFILE;
-    if(!(-e $localLogFileName))
-    {
-      logIt("Logfile to be parsed <$localLogFileName> do not exist. Aborting thread <$thisSystem>");
-      return 2;
-    }
   }
   else
   {
-#   To Do
+    chdir($LOGDIR);
+	$localCommand = "ls -1rt $LOGFILE";
+	$localOutput = `$localCommand`; chomp($localOutput);
+	@localFileList = split("\n",$localOutput);
+	$localLogFileName = $LOGDIR."/".$localFileList[$#localFileList];
   }
 
+  logIt("<$thisSystem> : Logfile to be read = <$localLogFileName>");
+  if(!(-e $localLogFileName))
+  {
+    logIt("<$thisSystem> : Logfile to be parsed <$localLogFileName> do not exist. Aborting thread.");
+    return 2;
+  }
+
+  logIt("Reading in tail mode : <$localLogFileName>");
   $fileToRead = File::Tail->new(name=>$localLogFileName, maxinterval=>2, interval=>2, debug=>1, resetafter=>60, ignore_nonexistant=>1, tail=>1);
   while(defined($line=$fileToRead->read))
   {
     chomp($line);
-    logIt("Thread<$thisThreadID> -- $line");
+    logIt("<$thisSystem> : Log Line <$line>");
     foreach $keyTomatch(@KEYWORD)
     {
       ($keyLine,$keyID,$keySeverity,$keyDesc) = split(":",$keyTomatch);
