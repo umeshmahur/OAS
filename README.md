@@ -30,7 +30,7 @@ SYSTEM=TOMCATAPP             # in the same OAS_CONFDIR dir. Multiple SYSTEM can 
 
 Below is the format of system config file
 SYSTEMID=11                  # System id to uniquely identify the system
-LOGTYPE=FIXED                # FIXED - Fixed name file, PATTERN - Pattern based logs file name
+LOGTYPE=FIXED                # FIXED - Fixed name file, NOTFIXED - Pattern based logs file name
 LOGDIR=/tmp/test             # Dire where the log file need to be read
 LOGFILE=kum.log              # Log file name or pattern
 #KEYWORD=<Fixed keyword or regular expression>:<KEYWORD_ID>:<Severity>:<Alert Description>
