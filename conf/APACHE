@@ -3,5 +3,5 @@ LOGTYPE=FIXED
 LOGDIR=/tmp/test
 LOGFILE=umm.log
 KEYWORD=system up:1:info:Apache system is just ready to be used
-KEYWORD=slow response:2:Network speed on Apache is slowing down
+KEYWORD=slow response:2:warning:Network speed on Apache is slowing down
 KEYWORD=space error:3:critical:disk space is about to exhaust

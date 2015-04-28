@@ -37,6 +37,6 @@ LOGFILE=kum.log              # Log file name or pattern
 #KEYWORD=[Fixed keyword or regular expression]:[KEYWORD_ID]:[Severity]:[Alert Description]
 #Multiple KEYWORDS can be defined
 KEYWORD=20[0-9][0-9](1[3-9]|2[0-9]):1:info:Date is in wrong format
-KEYWORD=slow response:2:Network speed on Apache is slowing down
+KEYWORD=slow response:2:warning:Network speed on Apache is slowing down
 KEYWORD=space error:3:critical:disk space is about to exhaust
 </pre>
